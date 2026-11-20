@@ -2,6 +2,6 @@ services:
   movie:
     build: ./movie/
     ports:
-      - "3200:3200"
+      - "3001:3001"
   # to continue
 

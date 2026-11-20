@@ -3,10 +3,12 @@ import json
 from flask import jsonify, request, make_response
 import requests
 
+with open('{}/data/bookings.json'.format("."), "r") as jsf:
+	bookings = json.load(jsf)["bookings"]
 
 def write_bookings_to_file():
-    with open('{}/databases/bookings.json'.format("."), "w") as jsf:
-        json.dump({"bookings": bookings}, jsf, indent=4)
+	with open('{}/data/bookings.json'.format("."), "w") as jsf:
+		json.dump({"bookings": bookings}, jsf, indent=4)
 
 def get_booking_data():
 	req = request.get_json(silent=True)
@@ -59,7 +61,7 @@ def save_booking(userid, date, movies):
 def verify_user_role(_, info, _userid):
 	return True
 
-def create_booking(_,info,_userid):
+def create_booking(_,info, _userid):
 	with open('{}/data/bookings.json'.format("."), "r") as file:
 		''''''
 		booking_data, error = get_booking_data()
@@ -71,13 +73,10 @@ def create_booking(_,info,_userid):
 		if error is not None:
 			return make_response(jsonify({"error": error[0]}), error[1])
 
-		save_booking(userid, date, movies)
+		save_booking(_userid, date, movies)
 		return make_response(jsonify({"message": "booking added"}), 200)
 		''''''
-		bookings = json.load(file)
-		for booking in bookings['bookings']:
-			if booking['userid'] == _userid:
-				return booking
+
 
 def read_all_bookings(_,info, _userid):
 	verify_user_role(_, info, _userid)

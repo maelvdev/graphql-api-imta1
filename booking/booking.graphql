@@ -1,0 +1,17 @@
+type Query {
+	create_booking(_userid: String!, _date: String!, _movie: String!): Booking
+	read_all_bookings(_userid: String!): Booking
+	delete_booking(_userid: String!, _movie_id: String!): Booking
+	get_detailed_booking(_userid: String!): Booking
+	get_booking_dates(_userid: String!): [String!]!
+}
+
+type Booking {
+	userid: String!
+	dates: [MovieDate!]!
+}
+
+type MovieDate {
+	date: String!
+	movies: [String!]!
+}

@@ -1,16 +1,17 @@
-FROM python
-# can you find a lighter image?
+FROM python:3.14-slim
 
 WORKDIR /app
 
 # copy the requirements file in the workdir
-RUN
+COPY requirements.txt .
 
 # install the Python requirements
-RUN
+RUN pip install -r requirements.txt
 
 # copy the app files and directories
-RUN
+COPY . .
+
+EXPOSE 3001
 
 # start movie.py when the container is started
-CMD 
+ENTRYPOINT ["python", "movie.py"]

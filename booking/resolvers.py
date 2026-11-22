@@ -1,14 +1,17 @@
-import json
-
 from flask import jsonify, request, make_response
+
+import json
 import requests
 
-with open('{}/data/bookings.json'.format("."), "r") as jsf:
-	bookings = json.load(jsf)["bookings"]
+DATA_FILE = './data/bookings.json'
 
-def write_bookings_to_file():
-	with open('{}/data/bookings.json'.format("."), "w") as jsf:
-		json.dump({"bookings": bookings}, jsf, indent=4)
+def load_bookings():
+	with open(DATA_FILE, "r") as jsf:
+		return json.load(jsf)["bookings"]
+
+def write_bookings_to_file(bookings_list):
+	with open(DATA_FILE, "w") as jsf:
+		json.dump({"bookings": bookings_list}, jsf, indent=4)
 
 def get_booking_data():
 	req = request.get_json(silent=True)
@@ -21,96 +24,74 @@ def get_booking_data():
 		return None, ("date and movies are required", 400)
 
 	return (date, movies), None
-
+	
 def validate_schedule(date, movies):
 	try:
 		schedule_response = requests.get(
-			"http://127.0.0.1:3202/schedule/{}".format(date),
+			f"http://127.0.0.1:3202/schedule/{date}",
 			timeout=5
 		)
 	except requests.RequestException:
-		return "schedule service unavailable", 503
+		raise Exception("Schedule service unavailable")
 
 	if schedule_response.status_code == 404:
-		return "session not found", 404
+		raise Exception("Session not found")
 	if schedule_response.status_code != 200:
-		return "could not check session", 502
+		raise Exception("Could not check session")
 
 	scheduled_movies = schedule_response.json().get("movies", [])
 	if any(movie_id not in scheduled_movies for movie_id in movies):
-		return "movie is not scheduled for this session", 400
+		raise Exception("Movie is not scheduled for this session")
 
-	return None
-
-def save_booking(userid, date, movies):
-	booking = next((item for item in bookings if item.get("userid") == userid), None)
-	if booking is None:
-		booking = {"userid": userid, "dates": []}
-		bookings.append(booking)
-
-	date_booking = next((item for item in booking["dates"] if item.get("date") == date), None)
-	if date_booking is None:
-		booking["dates"].append({"date": date, "movies": movies})
-	else:
-		date_booking["movies"] = list(dict.fromkeys(date_booking["movies"] + movies))
-
-	write_bookings_to_file()
-
-
-# à changer quand user sera complété
 def verify_user_role(_, info, _userid):
 	return True
 
-def create_booking(_,info, _userid):
-	with open('{}/data/bookings.json'.format("."), "r") as file:
-		''''''
-		booking_data, error = get_booking_data()
-		if error is not None:
-			return make_response(jsonify({"error": error[0]}), error[1])
+def create_booking(_, info, _userid, _date, _movie):
+	validate_schedule(_date, [_movie])
+	bookings_list = load_bookings()
 
-		date, movies = booking_data
-		error = validate_schedule(date, movies)
-		if error is not None:
-			return make_response(jsonify({"error": error[0]}), error[1])
+	booking = next((item for item in bookings_list if item.get("userid") == _userid), None)
+	if booking is None:
+		booking = {"userid": _userid, "dates": []}
+		bookings_list.append(booking)
 
-		save_booking(_userid, date, movies)
-		return make_response(jsonify({"message": "booking added"}), 200)
-		''''''
+	date_booking = next((item for item in booking["dates"] if item.get("date") == _date), None)
+	if date_booking is None:
+		booking["dates"].append({"date": _date, "movies": [_movie]})
+	else:
+		if _movie not in date_booking["movies"]:
+			date_booking["movies"].append(_movie)
 
+	write_bookings_to_file(bookings_list)
+	return booking
 
-def read_all_bookings(_,info, _userid):
+def read_all_bookings(_, info, _userid):
 	verify_user_role(_, info, _userid)
-	with open('{}/data/bookings.json'.format("."), "r") as file:
-		bookings = json.load(file)
-		return bookings['bookings']
+	return load_bookings()
 
-def delete_booking(_,info, _userid, _movieid):
-	with open('{}/data/bookings.json'.format("."), "r") as file:
-		bookings = json.load(file)
-		for booking in bookings['bookings']:
-			if booking['userid'] == _userid:
-				for date in booking['dates']:
-					if _movieid in date['movies']:
-						date['movies'].remove(_movieid)
-						with open('{}/data/bookings.json'.format("."), "w") as file:
-							json.dump(bookings, file, indent=4)
-						return True
+def delete_booking(_, info, _userid, _movie_id):
+	bookings_list = load_bookings()
+	for booking in bookings_list:
+		if booking['userid'] == _userid:
+			for date_entry in booking['dates']:
+				if _movie_id in date_entry['movies']:
+					date_entry['movies'].remove(_movie_id)
+					write_bookings_to_file(bookings_list)
+					return True
 	return False
 
-def get_detailed_booking(_,info, _userid, _bookingid):
-	with open('{}/data/bookings.json'.format("."), "r") as file:
-		bookings = json.load(file)
-		for booking in bookings['bookings']:
-			if booking['userid'] == _userid:
-				for date in booking['dates']:
-					if str(date['id']) == str(_bookingid):
-						return date
+def get_detailed_booking(_, info, _userid, _date):
+	bookings_list = load_bookings()
+	for booking in bookings_list:
+		if booking['userid'] == _userid:
+			for date_entry in booking['dates']:
+				if str(date_entry['date']) == str(_date):
+					return date_entry
 	return None
 
-def get_booking_dates_from_user(_,info, _userid):
-	with open('{}/data/bookings.json'.format("."), "r") as file:
-		bookings = json.load(file)
-		for booking in bookings['bookings']:
-			if booking['userid'] == _userid:
-				return booking['dates']
+def get_booking_dates_from_user(_, info, _userid):
+	bookings_list = load_bookings()
+	for booking in bookings_list:
+		if booking['userid'] == _userid:
+			return booking['dates']
 	return []

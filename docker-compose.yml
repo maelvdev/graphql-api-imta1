@@ -3,5 +3,8 @@ services:
     build: ./movie/
     ports:
       - "3001:3001"
-  # to continue
+  user:
+    build: ./user/
+    ports:
+      - "3004:3004"
 

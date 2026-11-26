@@ -11,7 +11,7 @@ RUN pip install -r requirements.txt
 # copy the app files and directories
 COPY . .
 
-EXPOSE 3001
+EXPOSE 3002
 
 # start movie.py when the container is started
 ENTRYPOINT ["python", "movie.py"]

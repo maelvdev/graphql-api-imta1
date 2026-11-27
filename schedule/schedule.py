@@ -1,22 +1,123 @@
-import grpc
-from concurrent import futures
-import schedule_pb2
-import schedule_pb2_grpc
+from flask import Flask, request, jsonify, make_response
 import json
+import requests
 
-class ScheduleServicer(schedule_pb2_grpc.ScheduleServicer):
+app = Flask(__name__)
 
-    def __init__(self):
-        with open('{}/data/times.json'.format("."), "r") as jsf:
-            self.db = json.load(jsf)["schedule"]
+PORT = 3202
 
-def serve():
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    schedule_pb2_grpc.add_ScheduleServicer_to_server(ScheduleServicer(), server)
-    server.add_insecure_port('[::]:3002')
-    server.start()
-    server.wait_for_termination()
+def load_schedule():
+   with open("./databases/times.json", "r") as jsf:   
+      schedule = json.load(jsf)["schedule"]
+   return schedule
 
+def write_schedule(schedule):
+   with open("./databases/times.json", 'w') as f:
+      full = {}
+      full['schedule'] = schedule
+      json.dump(full, f)
 
-if __name__ == '__main__':
-    serve()
+schedule = load_schedule()
+
+def error_response(message, code):
+    return make_response(jsonify({"error": message}), code)
+
+def is_admin(user_id):
+   try:
+      response = requests.get(
+         "http://127.0.0.1:3203/users/is-admin/{}".format(user_id),
+         timeout=5
+      )
+   except requests.RequestException:
+      return None
+   return response.status_code == 200
+
+def get_entry_by_date(date):
+   for entry in schedule:
+      if entry["date"] == date:
+         return entry
+   return []
+
+# in the request body we expect { date: "", movies: [] }
+def is_body_valid(body):
+   date = body.get("date")
+   movies = body.get("movies")
+   example_date = "20260101"
+   if date is None or movies is None or len(date) != len(example_date) or type(movies) != list:
+      return False
+   return True
+
+def get_valid_movies(movies):
+   for movie_id in movies:
+      resp = requests.get(f"http://127.0.0.1:3200/movies/{movie_id}")
+      if resp.status_code == 404:
+         movies.remove(movie_id)
+   return movies
+
+@app.route("/schedule/list/all", methods=['GET'])
+def get_all_schedules():
+   return make_response(jsonify(schedule))
+
+@app.route("/schedule/<date>", methods=["GET"])
+def get_date(date):
+   if len(movies := get_entry_by_date(date)) != 0:
+      return make_response(jsonify(movies), 200)
+   return error_response("no movies for the given date", 404)
+
+@app.route("/schedule/<date>/<user_id>", methods=["POST"])
+def add_movies_to_schedule(date, user_id):
+   admin = is_admin(user_id)
+   if admin is None:
+      return error_response("user service unavailable", 503)
+   if not admin:
+      return error_response("user is not admin", 403)
+
+   body = request.get_json()
+   if not is_body_valid(body):
+      return error_response("malformed request body", 400)
+   
+   movies_from_req = body.get("movies")
+   if len(movies_from_req) == 0:
+      return error_response("no movies were specified", 400)
+   
+   movies_to_add = get_valid_movies(movies_from_req)
+   if len(existing_entry := get_entry_by_date(date)) != 0:
+      existing_entry["movies"] = list(set(existing_entry["movies"]) | set(movies_to_add))
+      write_schedule(schedule)
+      return make_response(jsonify(existing_entry), 200)
+   else:
+      new_entry = {
+         "date": date,
+         "movies": movies_to_add,
+      }
+      schedule.append(new_entry)
+      write_schedule(schedule)
+   return make_response(jsonify(new_entry), 200)
+
+@app.route("/schedule/<date>/<user_id>", methods=["DELETE"])
+def remove_movies_from_date(date, user_id):
+   global schedule
+
+   admin = is_admin(user_id)
+   if admin is None:
+      return error_response("user service unavailable", 503)
+   if not admin:
+      return error_response("user is not admin", 403)
+
+   movies = get_entry_by_date(date)
+   if len(movies) == 0:
+      return error_response("date not found", 404)
+   
+   body = request.get_json()
+   if not is_body_valid(body):
+      return error_response("malformed request body", 400)
+   
+   entry = get_entry_by_date(body.get("date"))
+   entry["movies"] = [movie for movie in entry["movies"] if movie not in body.get("movies")]
+   if len(entry["movies"]) == 0:
+      schedule = [entry for entry in schedule if entry["date"] != date]
+   write_schedule(schedule)
+   return entry
+
+if __name__ == "__main__":
+    app.run(host='127.0.0.1', port=PORT, debug=True)

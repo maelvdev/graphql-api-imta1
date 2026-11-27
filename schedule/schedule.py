@@ -107,28 +107,26 @@ def add_movies_to_schedule(date, user_id):
 
 @app.route("/schedule/<date>/<user_id>", methods=["DELETE"])
 def remove_movies_from_date(date, user_id):
-   global schedule
-
    admin = is_admin(user_id)
    if admin is None:
       return error_response("user service unavailable", 503)
    if not admin:
       return error_response("user is not admin", 403)
 
-   movies = get_entry_by_date(date)
-   if len(movies) == 0:
+   entry = get_entry_by_date(date)
+   if len(entry) == 0:
       return error_response("date not found", 404)
-   
+
    body = request.get_json()
    if not is_body_valid(body):
       return error_response("malformed request body", 400)
-   
-   entry = get_entry_by_date(body.get("date"))
-   entry["movies"] = [movie for movie in entry["movies"] if movie not in body.get("movies")]
+
+   movies_to_remove = body.get("movies")
+   entry["movies"] = [movie for movie in entry["movies"] if movie not in movies_to_remove]
    if len(entry["movies"]) == 0:
-      schedule = [entry for entry in schedule if entry["date"] != date]
+      schedule.remove(entry)
    write_schedule(schedule)
-   return entry
+   return make_response(jsonify(entry), 200)
 
 if __name__ == "__main__":
     app.run(host=HOST, port=PORT, debug=True)

@@ -44,6 +44,22 @@ def validate_schedule(date, movies):
 		raise Exception("Movie is not scheduled for this session")
 
 def verify_user_role(_, info, _userid):
+	try:
+		user_response = requests.get(
+			f"http://127.0.0.1:3004/users/{_userid}",
+			timeout=5
+		)
+	except requests.RequestException:
+		raise Exception("User service unavailable")
+
+	if user_response.status_code == 404:
+		raise Exception("User not found")
+	if user_response.status_code != 200:
+		raise Exception("Could not check user")
+
+	user = user_response.json()
+	if not isinstance(user, dict) or user.get("role") != "admin":
+		raise Exception("User is not admin")
 	return True
 
 def create_booking(_, info, _userid, _date, _movie):

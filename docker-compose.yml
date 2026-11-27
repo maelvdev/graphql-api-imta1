@@ -11,6 +11,16 @@ services:
       MONGO_URL: mongodb://root:example@mongo:27017/
     depends_on:
       - mongo
+  booking:
+    build: ./booking/
+    ports:
+      - "3002:3002"
+    environment:
+      SCHEDULE_URL: http://schedule:3202
+  # schedule:
+  #   build: ./schedule
+  #   ports:
+  #     - "3003:3003"
   mongo:
     image: mongo:7
     restart: always

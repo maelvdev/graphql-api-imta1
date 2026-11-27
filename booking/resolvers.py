@@ -1,7 +1,10 @@
 from flask import jsonify, request, make_response
 
 import json
+import os
 import requests
+
+SCHEDULE_URL = os.environ.get("SCHEDULE_URL", "http://127.0.0.1:3202")
 
 DATA_FILE = './data/bookings.json'
 
@@ -28,7 +31,7 @@ def get_booking_data():
 def validate_schedule(date, movies):
 	try:
 		schedule_response = requests.get(
-			f"http://127.0.0.1:3202/schedule/{date}",
+			f"{SCHEDULE_URL}/schedule/{date}",
 			timeout=5
 		)
 	except requests.RequestException:

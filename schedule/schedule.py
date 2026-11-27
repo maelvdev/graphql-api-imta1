@@ -4,7 +4,7 @@ import requests
 
 app = Flask(__name__)
 
-PORT = 3202
+PORT = 3003
 
 def load_schedule():
    with open("./databases/times.json", "r") as jsf:   

@@ -1,18 +1,22 @@
 from flask import Flask, request, jsonify, make_response
 import json
+import os
 import requests
 
 app = Flask(__name__)
 
 PORT = 3003
+HOST = '0.0.0.0'
+USER_URL = os.environ.get("USER_URL", "http://127.0.0.1:3004")
+MOVIE_URL = os.environ.get("MOVIE_URL", "http://127.0.0.1:3001")
 
 def load_schedule():
-   with open("./databases/times.json", "r") as jsf:   
+   with open("./data/times.json", "r") as jsf:   
       schedule = json.load(jsf)["schedule"]
    return schedule
 
 def write_schedule(schedule):
-   with open("./databases/times.json", 'w') as f:
+   with open("./data/times.json", 'w') as f:
       full = {}
       full['schedule'] = schedule
       json.dump(full, f)
@@ -25,7 +29,7 @@ def error_response(message, code):
 def is_admin(user_id):
    try:
       response = requests.get(
-         "http://127.0.0.1:3203/users/is-admin/{}".format(user_id),
+         f"{USER_URL}/users/{user_id}/admin",
          timeout=5
       )
    except requests.RequestException:
@@ -47,12 +51,19 @@ def is_body_valid(body):
       return False
    return True
 
+def movie_exists(movie_id):
+   query = "query ($id: String!) { movie_with_id(_id: $id) { id } }"
+   resp = requests.post(
+      f"{MOVIE_URL}/graphql",
+      json={"query": query, "variables": {"id": movie_id}},
+      timeout=5
+   )
+   if resp.status_code != 200:
+      return False
+   return (resp.json().get("data") or {}).get("movie_with_id") is not None
+
 def get_valid_movies(movies):
-   for movie_id in movies:
-      resp = requests.get(f"http://127.0.0.1:3200/movies/{movie_id}")
-      if resp.status_code == 404:
-         movies.remove(movie_id)
-   return movies
+   return [movie_id for movie_id in movies if movie_exists(movie_id)]
 
 @app.route("/schedule/list/all", methods=['GET'])
 def get_all_schedules():
@@ -120,4 +131,4 @@ def remove_movies_from_date(date, user_id):
    return entry
 
 if __name__ == "__main__":
-    app.run(host='127.0.0.1', port=PORT, debug=True)
+    app.run(host=HOST, port=PORT, debug=True)

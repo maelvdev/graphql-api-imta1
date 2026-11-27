@@ -4,7 +4,8 @@ import json
 import os
 import requests
 
-SCHEDULE_URL = os.environ.get("SCHEDULE_URL", "http://127.0.0.1:3202")
+SCHEDULE_URL = os.environ.get("SCHEDULE_URL", "http://127.0.0.1:3003")
+USER_URL = os.environ.get("USER_URL", "http://127.0.0.1:3004")
 
 DATA_FILE = './data/bookings.json'
 
@@ -49,7 +50,7 @@ def validate_schedule(date, movies):
 def verify_user_role(_, info, _userid):
 	try:
 		user_response = requests.get(
-			f"http://127.0.0.1:3004/users/{_userid}",
+			f"{USER_URL}/users/{_userid}",
 			timeout=5
 		)
 	except requests.RequestException:
